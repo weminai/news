@@ -26,6 +26,7 @@ jobs:
           mkdir -p _site
           cp -r src/news src/media src/data _site/
           for f in nocopy.js favicon.ico favicon.svg favicon_64.png apple-touch-icon.png logo.png; do [ -f "src/$f" ] && cp "src/$f" _site/; done
+          for f in favicon.ico favicon.svg favicon_64.png apple-touch-icon.png; do if [ -f "src/news/n_$f" ]; then cp "src/news/n_$f" "_site/$f"; fi; done
           cp src/news/index.html _site/index.html
           for f in src/news/*; do b=$(basename "$f"); [ -f "_site/$b" ] || cp "$f" "_site/$b"; done
           [ -f src/404.html ] && cp src/404.html _site/404.html
