@@ -34,6 +34,46 @@ jobs:
           echo news.weminai.com > _site/CNAME
           # 2026-11-22 소장님 승인: 정식 등록(인천 아02034, 등록일 2026-10-26) 바닥글 일괄 갈음
           grep -rl '임시00155(인천광역시)' _site --include='*.html' | xargs -r sed -i -e 's/임시00155(인천광역시)/인천 아02034/g' -e 's/등록일 2026년 11월 10일/등록일 2026년 10월 26일/g'
+      # 2026-11-23 소장님 승인: 구글 검색용 사이트맵 자동 생성(전체 + 최근 48시간 뉴스)
+      - name: build sitemaps
+        run: |
+          python3 - <<'PYEOF'
+          import json, html, datetime
+          B = "https://news.weminai.com/"
+          KST = datetime.timezone(datetime.timedelta(hours=9))
+          now = datetime.datetime.now(KST)
+          d = json.load(open("_site/data/posts.json", encoding="utf-8"))
+          posts = d if isinstance(d, list) else d.get("posts", [])
+          seen = set(); urls = [(B, now.strftime("%Y-%m-%d"))]; news = []
+          for p in posts:
+              f = p.get("파일") or ""
+              if not f or f in seen or not f.startswith("media/"):
+                  continue
+              seen.add(f)
+              day = p.get("날짜") or ""
+              urls.append((B + f, day if len(day) == 10 else ""))
+              if len(day) == 10:
+                  try:
+                      t = datetime.datetime.strptime(day + " " + (p.get("시각") or "00:00"), "%Y-%m-%d %H:%M").replace(tzinfo=KST)
+                  except ValueError:
+                      continue
+                  if now - t <= datetime.timedelta(hours=48):
+                      news.append((B + f, t.isoformat(), p.get("제목") or ""))
+          with open("_site/sitemap.xml", "w", encoding="utf-8") as o:
+              o.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
+              for u, m in urls:
+                  o.write("  <url><loc>" + html.escape(u) + "</loc>" + ("<lastmod>" + m + "</lastmod>" if m else "") + "</url>\n")
+              o.write("</urlset>\n")
+          with open("_site/news-sitemap.xml", "w", encoding="utf-8") as o:
+              o.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n')
+              for u, t, ti in news:
+                  o.write("  <url><loc>" + html.escape(u) + "</loc><news:news><news:publication><news:name>AI경제저널</news:name><news:language>ko</news:language></news:publication><news:publication_date>" + t + "</news:publication_date><news:title>" + html.escape(ti) + "</news:title></news:news></url>\n")
+              o.write("</urlset>\n")
+          r = open("_site/robots.txt", encoding="utf-8").read()
+          if "news-sitemap.xml" not in r:
+              open("_site/robots.txt", "a", encoding="utf-8").write("Sitemap: https://news.weminai.com/news-sitemap.xml\n")
+          print("sitemap", len(urls), "news", len(news))
+          PYEOF
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
